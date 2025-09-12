@@ -1,0 +1,36 @@
+build: audit
+	go build -o sshkeyman cmd/auth/main.go
+	CGO_CFLAGS="-g -O2 -D __LIB_NSS_NAME=external" go build -ldflags '-s' --buildmode=c-shared -o libnss_external.so.2 cmd/nss/external.go
+
+install:
+	 sudo cp libnss_external.so.2 /usr/lib/x86_64-linux-gnu/libnss_external.so.2
+	 sudo cp sshkeyman /usr/bin/sshkeyman
+	 sudo mkdir -p /var/lib/sshkeyman
+	 sudo cp -rf nss_external.conf /etc/nss_external.conf
+
+vet:
+	@go vet ./...
+
+lint: fmt
+	@golangci-lint run --new-from-rev=master ./...
+
+fmt:
+	@go install mvdan.cc/gofumpt@v0.5.0
+	@gofumpt -l -w -extra ./.
+	@go install github.com/daixiang0/gci@v0.11.0
+	@go mod tidy
+
+audit: vet lint fmt staticcheck
+	go mod verify && \
+	go tool govulncheck -show verbose ./...
+
+staticcheck:
+	go tool staticcheck \
+		-checks=all,-ST1000,-ST1001,-ST1003,-ST1005,-SA1019,-ST1020,-ST1021,-ST1022 ./...
+
+unit-tests: audit
+	@go mod download
+	@go get -v ./...
+	@go test -cover -race -covermode=atomic -coverprofile coverage  ./...
+	@go tool cover -func=coverage
+	@rm coverage
