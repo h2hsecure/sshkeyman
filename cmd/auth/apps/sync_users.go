@@ -2,13 +2,18 @@ package apps
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/h2hsecure/sshkeyman/internal/adapter"
 	"github.com/h2hsecure/sshkeyman/internal/domain"
+	"github.com/protosam/go-libnss/structs"
+	"github.com/rs/zerolog/log"
 
 	"github.com/spf13/cobra"
 )
@@ -49,20 +54,46 @@ func SyncUser(c chan os.Signal) error {
 	}
 
 	for _, userDetail := range userDetails {
-		user, err := backend.ReadUser(ctx, userDetail.Username)
+
+		if userDetail.SshPublicKey == "" {
+			continue
+		}
+		_, err := backend.ReadUser(ctx, userDetail.Username)
 
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return fmt.Errorf("backend read: %w", err)
 		}
 
-		if errors.Is(err, domain.ErrNotFound) {
-			if cfg.Nss.Override {
+		if err == nil {
+			if !cfg.Nss.Override {
+				log.Warn().Err(err).Str("user", userDetail.Username).Msgf("override disabled")
 				continue
 			}
 		}
 
-		err = backend.CreateUser(ctx, user.User.Username, domain.KeyDto{
-			SshKeys: []domain.SshKey{},
+		log.Info().Str("user", userDetail.Username).Msgf("creating")
+
+		key := strings.Split(userDetail.SshPublicKey, " ")
+		if len(key) != 3 {
+			log.Error().Str("user", userDetail.Username).Msg("key format error")
+		}
+
+		err = backend.CreateUser(ctx, userDetail.Username, domain.KeyDto{
+			User: structs.Passwd{
+				Username: userDetail.Username,
+				UID:      cfg.Nss.MinUID + hash(userDetail.Id),
+				GID:      cfg.Nss.GroupID,
+				Dir:      fmt.Sprintf(cfg.Home, userDetail.Username),
+				Shell:    cfg.Nss.Shell,
+				Gecos:    userDetail.Fullname,
+			},
+			SshKeys: []domain.SshKey{
+				{
+					Aglo: key[0],
+					Key:  key[1],
+					Name: key[2],
+				},
+			},
 		})
 
 		if err != nil {
@@ -71,4 +102,15 @@ func SyncUser(c chan os.Signal) error {
 	}
 
 	return nil
+}
+
+func hash(s string) uint {
+	hasher := sha256.New()
+	_, err := hasher.Write([]byte(s))
+	if err != nil {
+		return 0
+	}
+	md := hasher.Sum(nil)
+	i := big.NewInt(0).SetBytes(md)
+	return uint(i.Uint64())
 }

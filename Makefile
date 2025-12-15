@@ -1,12 +1,12 @@
 build: audit
 	go build -o sshkeyman cmd/auth/main.go
-	CGO_CFLAGS="-g -O2 -D __LIB_NSS_NAME=external" go build -ldflags '-s' --buildmode=c-shared -o libnss_external.so.2 cmd/nss/external.go
+	CGO_CFLAGS="-g -O2 -D __LIB_NSS_NAME=sshkeyman" go build -ldflags '-s' --buildmode=c-shared -o libnss_sshkeyman.so.2 cmd/nss/lib.go
 
-install:
-	 sudo cp libnss_external.so.2 /usr/lib/x86_64-linux-gnu/libnss_external.so.2
+install: build
+	 sudo cp libnss_sshkeyman.so.2 /usr/lib/x86_64-linux-gnu/libnss_sshkeyman.so.2
 	 sudo cp sshkeyman /usr/bin/sshkeyman
 	 sudo mkdir -p /var/lib/sshkeyman
-	 sudo cp -rf nss_external.conf /etc/nss_external.conf
+	 sudo cp -rf nss_sshkeyman.conf /etc/nss_sshkeyman.conf
 
 vet:
 	@go vet ./...

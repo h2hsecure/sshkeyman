@@ -1,2 +1,2 @@
 sshkeyman
-libnss_external.so.2
+libnss_sshkeyman.so.2

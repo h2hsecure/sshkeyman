@@ -19,7 +19,7 @@ var (
 )
 
 func main() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "/etc/nss_external.yaml", "config file (default is /etc/nss_external.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "/etc/nss_sshkeyman.yaml", "config file (default is /etc/nss_sshkeyman.yaml)")
 	rootCmd.PersistentFlags().StringP("author", "a", "Auth Keycloak", "author name for copyright attribution")
 
 	rootCmd.AddCommand(apps.KeyCmd)

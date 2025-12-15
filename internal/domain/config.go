@@ -7,20 +7,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config is base config in /etc/nss_external.conf
+// Config is base config in /etc/nss_sshkeyman.conf
 type Config struct {
 	Nss      NSSConfig      `yaml:"nss"`
 	Keycloak KeycloakConfig `yaml:"keycloak"`
 	Home     string         `yaml:"home"`
 	DBPath   string         `yaml:"db_path"`
-	Shell    string         `yaml:"shell"`
 }
 
 type NSSConfig struct {
 	MinUID   uint     `yaml:"minuid"`
-	GroupIP  uint     `yaml:"groupid"`
+	GroupID  uint     `yaml:"groupid"`
 	Override bool     `yaml:"override"`
 	Suffix   []string `yaml:"suffix"`
+	Shell    string   `yaml:"shell"`
 }
 
 type KeycloakConfig struct {
@@ -32,15 +32,16 @@ type KeycloakConfig struct {
 }
 
 func LoadConfig() *Config {
-	cfgfile, cfgErr := os.ReadFile("/etc/nss_external.conf")
+	cfgfile, cfgErr := os.ReadFile("/etc/nss_sshkeyman.conf")
 	if cfgErr != nil {
 		fmt.Printf("open config file, using defaults: %s\n", cfgErr.Error())
 		cfg := Config{}
 		cfg.Nss = NSSConfig{}
-		cfg.Nss.GroupIP = 1000
+		cfg.Nss.GroupID = 1000
 		cfg.Nss.MinUID = 10000
+		cfg.Nss.Override = true
 		cfg.Home = "/home/%s"
-		cfg.Shell = "/bin/bash"
+		cfg.Nss.Shell = "/bin/bash"
 		cfg.DBPath = "/tmp/users.db"
 		return &cfg
 	}

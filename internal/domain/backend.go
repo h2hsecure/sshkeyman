@@ -5,12 +5,14 @@ import (
 )
 
 type UserDetail struct {
+	Id           string
 	Username     string
+	Fullname     string
 	SshPublicKey string
 }
 
 type TokenDetail struct {
-	AuthToken string
+	AuthToken string `json:"access_token"`
 }
 
 type Backend interface {

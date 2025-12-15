@@ -21,14 +21,14 @@ var KeyCmd = &cobra.Command{
 		c := make(chan os.Signal, 1)
 
 		// Launch the application
-		if err := KeyCommand(c); err != nil {
+		if err := KeyCommand(context.Background(), c); err != nil {
 			fmt.Fprintf(os.Stderr, "%s", err.Error())
 			os.Exit(1)
 		}
 	},
 }
 
-func KeyCommand(c chan os.Signal) error {
+func KeyCommand(ctx context.Context, c chan os.Signal) error {
 	if len(os.Args) == 0 {
 		panic("you should give username as a parameter")
 	}
@@ -47,7 +47,7 @@ func KeyCommand(c chan os.Signal) error {
 		}
 	}()
 
-	keyDto, err := db.ReadUser(context.Background(), username)
+	keyDto, err := db.ReadUser(ctx, username)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read user: %s\n", err.Error())
 	}

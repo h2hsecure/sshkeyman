@@ -1,0 +1,62 @@
+{
+  "realm": "test-realm",
+  "enabled": true,
+  "users": [
+    {
+      "username": "test-api-user",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "manage-users"
+        ]
+      }
+    },
+    {
+      "username": "test-ssh-user",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "ssh-keys": [
+          "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAt user@keycloak"
+        ]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "admin-cli",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "authorizationServicesEnabled": false
+    }
+  ],
+  "roles": {
+    "realm": []
+  },
+  "defaultRoles": ["offline_access"],
+  "groups": [],
+  "components": {},
+  "identityProviders": [],
+  "requiredActions": [],
+  "eventsListeners": [],
+  "enabledEventTypes": [],
+  "adminEventsEnabled": true
+}

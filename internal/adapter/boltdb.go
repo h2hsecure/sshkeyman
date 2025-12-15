@@ -33,15 +33,10 @@ func (b *boltAdapter) CreateUser(ctx context.Context, username string, keyDto do
 		return fmt.Errorf("db view: %w", err)
 	}
 
-	bucket := tx.Bucket([]byte("ssh_keys"))
-
-	if bucket == nil {
-		bucket, err = tx.CreateBucket([]byte("ssh_keys"))
-		if err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("create bucket: %w", err)
-		}
-
+	bucket, err := tx.CreateBucketIfNotExists([]byte("ssh_keys"))
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("create bucket: %w", err)
 	}
 
 	m, err := json.Marshal(keyDto)
@@ -76,7 +71,7 @@ func (b *boltAdapter) ReadUser(ctx context.Context, username string) (domain.Key
 
 	bucket := tx.Bucket([]byte("ssh_keys"))
 
-	if b == nil {
+	if bucket == nil {
 		return domain.KeyDto{}, fmt.Errorf("db bucket not found: %w", err)
 	}
 	defer func() {
