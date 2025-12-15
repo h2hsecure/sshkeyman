@@ -16,16 +16,16 @@ import (
 func main() {}
 
 func init() {
-	nss.SetImpl(LibNssShhKeyMan{})
+	nss.SetImpl(LibNssSshKeyMan{})
 }
 
-type LibNssShhKeyMan struct{ nss.LIBNSS }
+type LibNssSshKeyMan struct{ nss.LIBNSS }
 
-func (libnss LibNssShhKeyMan) PasswdAll() (nss.Status, []nssStructs.Passwd) {
+func (libnss LibNssSshKeyMan) PasswdAll() (nss.Status, []nssStructs.Passwd) {
 	return nss.StatusSuccess, []nssStructs.Passwd{}
 }
 
-func (libnss LibNssShhKeyMan) PasswdByName(name string) (nss.Status, nssStructs.Passwd) {
+func (libnss LibNssSshKeyMan) PasswdByName(name string) (nss.Status, nssStructs.Passwd) {
 	cfg := domain.LoadConfig()
 	// Accept only for usernames ending with @XXX XXX defined in config
 	for _, suffix := range cfg.Nss.Suffix {
@@ -59,7 +59,7 @@ func (libnss LibNssShhKeyMan) PasswdByName(name string) (nss.Status, nssStructs.
 }
 
 // PasswdByUid returns a single entry by uid.
-func (libnss LibNssShhKeyMan) PasswdByUid(uid uint) (nss.Status, nssStructs.Passwd) {
+func (libnss LibNssSshKeyMan) PasswdByUid(uid uint) (nss.Status, nssStructs.Passwd) {
 	// fmt.Printf("PasswdByUid %d skip\n", uid)
 	cfg := domain.LoadConfig()
 	db, err := adapter.NewBoldDB(cfg.DBPath, true)
@@ -87,19 +87,19 @@ func (libnss LibNssShhKeyMan) PasswdByUid(uid uint) (nss.Status, nssStructs.Pass
 }
 
 // GroupAll returns all groups, not managed here
-func (libnss LibNssShhKeyMan) GroupAll() (nss.Status, []nssStructs.Group) {
+func (libnss LibNssSshKeyMan) GroupAll() (nss.Status, []nssStructs.Group) {
 	// fmt.Printf("GroupAll\n")
 	return nss.StatusSuccess, []nssStructs.Group{}
 }
 
 // GroupByName returns a group, not managed here
-func (libnss LibNssShhKeyMan) GroupByName(name string) (nss.Status, nssStructs.Group) {
+func (libnss LibNssSshKeyMan) GroupByName(name string) (nss.Status, nssStructs.Group) {
 	// fmt.Printf("GroupByName %s\n", name)
 	return nss.StatusNotfound, nssStructs.Group{}
 }
 
 // GroupBuGid retusn group by id, not managed heresSS
-func (libnss LibNssShhKeyMan) GroupByGid(gid uint) (nss.Status, nssStructs.Group) {
+func (libnss LibNssSshKeyMan) GroupByGid(gid uint) (nss.Status, nssStructs.Group) {
 	// fmt.Printf("GroupByGid %d\n", gid)
 	return nss.StatusNotfound, nssStructs.Group{}
 }
@@ -108,13 +108,13 @@ func (libnss LibNssShhKeyMan) GroupByGid(gid uint) (nss.Status, nssStructs.Group
 // Shadow Methods
 // //////////////////////////////////////////////////////////////
 // ShadowAll return all shadow entries, not managed as no password are allowed here
-func (libnss LibNssShhKeyMan) ShadowAll() (nss.Status, []nssStructs.Shadow) {
+func (libnss LibNssSshKeyMan) ShadowAll() (nss.Status, []nssStructs.Shadow) {
 	// fmt.Printf("ShadowAll\n")
 	return nss.StatusSuccess, []nssStructs.Shadow{}
 }
 
 // ShadowByName return shadow entry, not managed as no password are allowed here
-func (libnss LibNssShhKeyMan) ShadowByName(name string) (nss.Status, nssStructs.Shadow) {
+func (libnss LibNssSshKeyMan) ShadowByName(name string) (nss.Status, nssStructs.Shadow) {
 	// fmt.Printf("ShadowByName %s\n", name)
 	return nss.StatusNotfound, nssStructs.Shadow{}
 }
