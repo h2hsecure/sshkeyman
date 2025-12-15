@@ -28,10 +28,9 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
-        run: go install
 
       - name: Verify dependencies
-        run: make audit
+        run: go install && make audit
 
       - name: Run tests
         run: make unit-test
