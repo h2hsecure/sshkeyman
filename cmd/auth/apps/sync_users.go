@@ -95,7 +95,6 @@ func SyncUser(c chan os.Signal) error {
 				},
 			},
 		})
-
 		if err != nil {
 			return fmt.Errorf("backend write: %w", err)
 		}

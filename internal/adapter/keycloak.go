@@ -24,21 +24,6 @@ type KeyCloakAdapter struct {
 	AccessPassword string
 }
 
-// Debugf implements resty.Logger.
-func (a *KeyCloakAdapter) Debugf(format string, v ...interface{}) {
-	panic("unimplemented")
-}
-
-// Errorf implements resty.Logger.
-func (a *KeyCloakAdapter) Errorf(format string, v ...interface{}) {
-	panic("unimplemented")
-}
-
-// Warnf implements resty.Logger.
-func (a *KeyCloakAdapter) Warnf(format string, v ...interface{}) {
-	panic("unimplemented")
-}
-
 type keycloakUser struct {
 	Id         string              `json:"id"`
 	Username   string              `json:"username"`
@@ -83,7 +68,6 @@ func (a *KeyCloakAdapter) auth(ctx context.Context) (string, error) {
 
 	res, err := resty.New().R().
 		EnableTrace().
-		SetLogger(a).
 		SetContext(ctx).
 		SetFormData(formData).
 		SetResult(&ret).

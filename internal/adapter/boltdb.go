@@ -46,7 +46,6 @@ func (b *boltAdapter) CreateUser(ctx context.Context, username string, keyDto do
 	}
 
 	err = bucket.Put([]byte(username), m)
-
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("db put: %w", err)
@@ -87,7 +86,6 @@ func (b *boltAdapter) ReadUser(ctx context.Context, username string) (domain.Key
 	var keyDto domain.KeyDto
 
 	err = json.Unmarshal(sshKeysForUsers, &keyDto)
-
 	if err != nil {
 		return domain.KeyDto{}, fmt.Errorf("db value unmarshal: %w", err)
 	}
@@ -117,7 +115,6 @@ func (b *boltAdapter) ReadUserById(ctx context.Context, uid uint) (domain.KeyDto
 		var keyDto domain.KeyDto
 
 		err = json.Unmarshal(v, &keyDto)
-
 		if err != nil {
 			return fmt.Errorf("db value unmarshal: %w", err)
 		}
@@ -127,7 +124,6 @@ func (b *boltAdapter) ReadUserById(ctx context.Context, uid uint) (domain.KeyDto
 
 		return nil
 	})
-
 	if err != nil {
 		return retKeyDto, fmt.Errorf("db foreach: %w", err)
 	}

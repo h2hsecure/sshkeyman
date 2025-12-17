@@ -6,18 +6,16 @@ install: build
 	 sudo cp libnss_sshkeyman.so.2 /usr/lib/x86_64-linux-gnu/libnss_sshkeyman.so.2
 	 sudo cp sshkeyman /usr/bin/sshkeyman
 	 sudo mkdir -p /var/lib/sshkeyman
-	 sudo cp -rf nss_sshkeyman.conf /etc/nss_sshkeyman.conf
+	 #sudo cp -rf nss_sshkeyman.conf /etc/nss_sshkeyman.conf
 
 vet:
 	@go vet ./...
 
 lint: fmt
-	@golangci-lint run --new-from-rev=master ./...
+	@go tool golangci-lint run --new-from-rev=master ./...
 
 fmt:
-	@go install mvdan.cc/gofumpt@v0.5.0
-	@gofumpt -l -w -extra ./.
-	@go install github.com/daixiang0/gci@v0.11.0
+	@go tool gofumpt -l -w -extra ./.
 	@go mod tidy
 
 audit: vet lint fmt staticcheck
