@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"
@@ -14,6 +13,8 @@ import (
 
 	"github.com/h2hsecure/sshkeyman/internal/adapter"
 	"github.com/h2hsecure/sshkeyman/internal/domain"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -45,6 +46,7 @@ type User struct {
 
 func NewDaemon(c chan os.Signal) error {
 	cfg := domain.LoadConfig()
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	_ = os.Remove(cfg.SocketPath)
 
@@ -60,7 +62,7 @@ func NewDaemon(c chan os.Signal) error {
 		return fmt.Errorf("chmod: %v", err)
 	}
 
-	log.Println("myservice NSS daemon listening")
+	log.Info().Msg("myservice NSS daemon listening")
 
 	db, err := adapter.NewBoldDB(cfg.DBPath, true)
 	if err != nil {
@@ -103,7 +105,7 @@ func NewDaemon(c chan os.Signal) error {
 
 	err = grp.Wait()
 	if err != nil {
-		log.Printf("closing the app")
+		log.Info().Msg("closing the app")
 	}
 
 	return nil
@@ -125,7 +127,7 @@ func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
 
 	line = strings.TrimSpace(line)
 	fields := strings.Fields(line)
-	log.Printf("request: %v", fields)
+
 	if len(fields) != 2 {
 		return
 	}
@@ -146,8 +148,6 @@ func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
 	default:
 		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 	}
-
-	log.Printf("user: %v", user)
 
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
