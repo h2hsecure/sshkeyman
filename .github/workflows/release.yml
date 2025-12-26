@@ -1,0 +1,46 @@
+name: SshKeyMan CI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        go-version: [ "1.25.5" ]
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Verify dependencies
+        run: make audit
+
+      - name: Run tests
+        run: make unit-tests
+
+      - name: Build binaries
+        run: |
+          make package
+      
+      - name: Release binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
