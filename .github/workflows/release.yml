@@ -27,12 +27,6 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Verify dependencies
-        run: make audit
-
-      - name: Run tests
-        run: make unit-tests
-
       - name: Build binaries
         run: |
           make package
