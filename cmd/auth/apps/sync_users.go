@@ -38,12 +38,16 @@ var SyncUserCmd = &cobra.Command{
 func SyncUser(c chan os.Signal) error {
 	cfg := domain.LoadConfig()
 
-	keycloak := adapter.NewKeyCloakAdapter(cfg)
 	backend, err := adapter.NewBoldDB(cfg.DBPath, false)
 	if err != nil {
 		return err
 	}
 
+	return SyncUserInDB(cfg, backend)
+}
+
+func SyncUserInDB(cfg *domain.Config, backend domain.BoltDB) error {
+	keycloak := adapter.NewKeyCloakAdapter(cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 	defer cancel()
@@ -111,5 +115,5 @@ func hash(s string) uint {
 	}
 	md := hasher.Sum(nil)
 	i := big.NewInt(0).SetBytes(md)
-	return uint(i.Uint64())
+	return i.Bit(32)
 }

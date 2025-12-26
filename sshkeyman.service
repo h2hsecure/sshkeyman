@@ -1,0 +1,12 @@
+[Unit]
+Description=Ssh Key Management
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=/usr/bin/sshkeyman server
+
+[Install]
+WantedBy=multi-user.target
