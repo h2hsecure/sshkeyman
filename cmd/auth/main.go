@@ -25,6 +25,7 @@ func main() {
 	rootCmd.AddCommand(apps.KeyCmd)
 	rootCmd.AddCommand(apps.SyncUserCmd)
 	rootCmd.AddCommand(apps.NewUserCmd)
+	rootCmd.AddCommand(apps.DaemonCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		// fmt.Fprintf(os.Stderr, "run failed: %s\n", err.Error())

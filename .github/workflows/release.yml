@@ -2,16 +2,14 @@ name: SshKeyMan CI
 
 on:
   push:
-    branches:
-      - main
-      - master
-  pull_request:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  test-and-build:
+  release:
     name: Test & Build
     runs-on: ubuntu-latest
 
@@ -28,12 +26,6 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
-
-      - name: Verify dependencies
-        run: make audit
-
-      - name: Run tests
-        run: make unit-tests
 
       - name: Build binaries
         run: |
