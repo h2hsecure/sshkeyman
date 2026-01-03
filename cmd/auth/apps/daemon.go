@@ -133,39 +133,73 @@ func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
 	}
 
 	var user domain.KeyDto
+	usernameOrId := fields[1]
 
 	switch fields[0] {
-
 	case "GETPWNAM":
+		user, err = db.ReadUser(ctx, usernameOrId)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
 
-		username := fields[1]
-		user, err = db.ReadUser(ctx, username)
+		if errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
 
+		_, _ = fmt.Fprintf(
+			conn,
+			"OK %s %d %d %s %s\n",
+			user.User.Username,
+			user.User.UID,
+			user.User.GID,
+			user.User.Dir,
+			user.User.Shell,
+		)
 	case "GETPWUID":
-		uid, _ := strconv.ParseUint(fields[1], 10, 32)
-
+		uid, _ := strconv.ParseUint(usernameOrId, 10, 32)
 		user, err = db.ReadUserById(ctx, uint(uid))
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		if errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		_, _ = fmt.Fprintf(
+			conn,
+			"OK %s %d %d %s %s\n",
+			user.User.Username,
+			user.User.UID,
+			user.User.GID,
+			user.User.Dir,
+			user.User.Shell,
+		)
+	case "GETSSHKEY":
+		keyDto, err := db.ReadUser(ctx, usernameOrId)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		if errors.Is(err, domain.ErrNotFound) {
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		for _, key := range keyDto.SshKeys {
+			_, _ = fmt.Fprintf(conn, "OK %s %s %s\n", key.Aglo, key.Key, key.Name)
+		}
+		return
+
+	case "SETUSER":
+	case "SYNC":
 	default:
 		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 	}
 
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
-		return
-	}
-
-	if errors.Is(err, domain.ErrNotFound) {
-		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
-		return
-	}
-
-	_, _ = fmt.Fprintf(
-		conn,
-		"OK %s %d %d %s %s\n",
-		user.User.Username,
-		user.User.UID,
-		user.User.GID,
-		user.User.Dir,
-		user.User.Shell,
-	)
 }

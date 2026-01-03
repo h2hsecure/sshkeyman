@@ -3,11 +3,11 @@ package apps
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 
-	"github.com/h2hsecure/sshkeyman/internal/adapter"
 	"github.com/h2hsecure/sshkeyman/internal/domain"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -36,24 +36,43 @@ func KeyCommand(ctx context.Context, c chan os.Signal) error {
 	username := os.Args[2]
 	cfg := domain.LoadConfig()
 
-	db, err := adapter.NewBoldDB(cfg.DBPath, true)
+	conn, err := net.Dial("unix", cfg.SocketPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("Dial: %v", err)
 	}
-
 	defer func() {
-		if err := db.Close(); err != nil {
-			log.Warn().Err(err).Msgf("db close")
-		}
+		_ = conn.Close()
 	}()
 
-	keyDto, err := db.ReadUser(ctx, username)
+	_, err = fmt.Fprintf(conn, "GETSSHKEY %s", username)
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read user: %s\n", err.Error())
+		os.Exit(1)
 	}
 
-	for _, key := range keyDto.SshKeys {
-		fmt.Printf("%s %s %s\n", key.Aglo, key.Key, key.Name)
+	buf := make([]byte, 1024)
+	readCound, err := conn.Read(buf)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "read user: %s\n", err.Error())
+		os.Exit(1)
 	}
+
+	readStr := string(buf[:readCound])
+
+	if strings.Contains(readStr, "NOTFOUND") {
+		fmt.Fprintf(os.Stderr, "user not found: %s\n", err.Error())
+		os.Exit(2)
+	}
+
+	var algo, key, name string
+
+	if count, err := fmt.Sscanf(readStr, "OK %s %s %s", algo, key, name); err != nil || count != 3 {
+		fmt.Fprintf(os.Stderr, "internal: %s\n", err.Error())
+		os.Exit(2)
+	}
+
+	fmt.Printf("%s %s %s\n", algo, key, name)
 	return nil
 }

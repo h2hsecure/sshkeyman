@@ -19,9 +19,9 @@ audit: vet lint fmt staticcheck
 unit-tests: audit
 	@go mod download
 	@go get -v ./...
-	@go test -cover -race -covermode=atomic -coverprofile coverage  ./...
-	@go tool cover -func=coverage
-	@rm coverage
+	@go test -race -covermode=atomic -coverprofile coverage  ./...
+# 	@go tool cover -func=coverage
+# 	@rm coverage
 
 build: audit
 	@go build -o sshkeyman cmd/auth/main.go
