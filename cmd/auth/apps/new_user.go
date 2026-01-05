@@ -1,13 +1,13 @@
 package apps
 
 import (
-	"context"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 
-	"github.com/h2hsecure/sshkeyman/internal/adapter"
 	"github.com/h2hsecure/sshkeyman/internal/domain"
-	"github.com/protosam/go-libnss/structs"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -16,59 +16,52 @@ var NewUserCmd = &cobra.Command{
 	Use:   "new [user] [key]",
 	Short: "Create new user record for ssh keys database",
 	Long:  AppDescription,
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(5),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Listen for termination signal for gracefully shutdown
 		c := make(chan os.Signal, 1)
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: false})
 
 		// Launch the application
-		if err := NewUser(c); err != nil {
-			fmt.Fprintf(os.Stderr, "%s", err.Error())
+		if err := NewUser(args, c); err != nil {
+			log.Err(err).Interface("args", args).Send()
 			os.Exit(1)
 		}
 	},
 }
 
-func NewUser(c chan os.Signal) error {
-	if len(os.Args) == 2 {
-		panic("you should give username as a parameter")
-	}
-
-	username := os.Args[2]
-
+func NewUser(args []string, c chan os.Signal) error {
 	cfg := domain.LoadConfig()
 
-	db, err := adapter.NewBoldDB(cfg.DBPath, false)
+	conn, err := net.Dial("unix", cfg.SocketPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("dial: %w", err)
 	}
-
 	defer func() {
-		if err := db.Close(); err != nil {
-			log.Warn().Err(err).Msgf("db close")
-		}
+		_ = conn.Close()
 	}()
 
-	var keyDto domain.KeyDto
-
-	keyDto.User = structs.Passwd{
-		Username: username,
-		Password: "",
-		UID:      500,
-		Dir:      "/home/" + username,
-		Shell:    "/bin/bash",
-		Gecos:    "test",
+	// r := bufio.NewWriter(conn)
+	//fmt.Fprintf(os.Stderr, "SETUSER %s %s %s %s\n", args[0], args[1], args[2], args[3])
+	//_, err = fmt.Fprintf(r, "SETUSER %s\n", os.Args[2])
+	count, err := fmt.Fprintf(conn, "SETUSER %s %s %s %s \n", args[0], args[1], args[2], args[3])
+	if err != nil {
+		return fmt.Errorf("sent command")
 	}
 
-	keyDto.SshKeys = append(keyDto.SshKeys, domain.SshKey{
-		Aglo: os.Args[3],
-		Key:  os.Args[4],
-		Name: os.Args[5],
-	})
-
-	if err := db.CreateUser(context.Background(), username, keyDto); err != nil {
-		return fmt.Errorf("create user: %w", err)
+	buf := make([]byte, 1024)
+	readCount, err := conn.Read(buf[:])
+	if err != nil {
+		return fmt.Errorf("read buf count: %d path: %s : %w", count, cfg.SocketPath, err)
 	}
+
+	readStr := string(buf[0:readCount])
+
+	if strings.Contains(readStr, "NOTFOUND") {
+		return fmt.Errorf("user not found")
+	}
+
+	log.Info().Str("username", args[0]).Msg("created")
 
 	return nil
 }

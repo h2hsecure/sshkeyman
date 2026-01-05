@@ -13,6 +13,7 @@ import (
 
 	"github.com/h2hsecure/sshkeyman/internal/adapter"
 	"github.com/h2hsecure/sshkeyman/internal/domain"
+	"github.com/protosam/go-libnss/structs"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -27,26 +28,18 @@ var DaemonCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Listen for termination signal for gracefully shutdown
 		c := make(chan os.Signal, 1)
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: false})
 
 		// Launch the application
 		if err := NewDaemon(c); err != nil {
-			fmt.Fprintf(os.Stderr, "%s", err.Error())
+			log.Err(err).Send()
 			os.Exit(1)
 		}
 	},
 }
 
-// Example backing store
-type User struct {
-	UID   uint32
-	GID   uint32
-	Home  string
-	Shell string
-}
-
 func NewDaemon(c chan os.Signal) error {
 	cfg := domain.LoadConfig()
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	_ = os.Remove(cfg.SocketPath)
 
@@ -64,10 +57,14 @@ func NewDaemon(c chan os.Signal) error {
 
 	log.Info().Msg("myservice NSS daemon listening")
 
-	db, err := adapter.NewBoldDB(cfg.DBPath, true)
+	db, err := adapter.NewBoldDB(cfg.DBPath, false)
 	if err != nil {
 		return fmt.Errorf("db open: %w", err)
 	}
+
+	keycloak := adapter.NewKeyCloakAdapter(cfg)
+
+	srv := domain.NewService(cfg, db, keycloak)
 
 	grp, ctx := errgroup.WithContext(context.Background())
 
@@ -78,7 +75,7 @@ func NewDaemon(c chan os.Signal) error {
 				return fmt.Errorf("accept: %w", err)
 			}
 
-			go handleConn(ctx, conn, db)
+			go handleConn(ctx, conn, srv)
 		}
 	})
 
@@ -111,33 +108,35 @@ func NewDaemon(c chan os.Signal) error {
 	return nil
 }
 
-func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
+func handleConn(ctx context.Context, conn net.Conn, srv domain.IService) {
 	defer func() {
 		_ = conn.Close()
 	}()
-	log.Printf("handling connection")
+
 	// Hard timeout: NSS must never block
-	_ = conn.SetDeadline(time.Now().Add(200 * time.Millisecond))
+	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
 
 	r := bufio.NewReader(conn)
 	line, err := r.ReadString('\n')
 	if err != nil {
+		log.Err(err).Msg("reading socket")
 		return
 	}
 
 	line = strings.TrimSpace(line)
 	fields := strings.Fields(line)
 
-	if len(fields) != 2 {
-		return
-	}
-
-	var user domain.KeyDto
-	usernameOrId := fields[1]
+	log.Info().Str("command", fields[0]).Msg("handling")
 
 	switch fields[0] {
 	case "GETPWNAM":
-		user, err = db.ReadUser(ctx, usernameOrId)
+		if len(fields) != 2 {
+			log.Warn().Interface("params", fields).Msg("wrong data recieved")
+			return
+		}
+
+		usernameOrId := fields[1]
+		user, err := srv.FindUser(ctx, domain.WithUsername(usernameOrId))
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 			return
@@ -158,9 +157,16 @@ func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
 			user.User.Shell,
 		)
 	case "GETPWUID":
+		if len(fields) != 2 {
+			log.Warn().Interface("params", fields).Msg("wrong data recieved")
+			return
+		}
+
+		usernameOrId := fields[1]
 		uid, _ := strconv.ParseUint(usernameOrId, 10, 32)
-		user, err = db.ReadUserById(ctx, uint(uid))
+		user, err := srv.FindUser(ctx, domain.WithUserId(uint(uid)))
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			log.Err(err).Msg("fetch user has problem")
 			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 			return
 		}
@@ -180,7 +186,13 @@ func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
 			user.User.Shell,
 		)
 	case "GETSSHKEY":
-		keyDto, err := db.ReadUser(ctx, usernameOrId)
+		if len(fields) != 2 {
+			log.Warn().Interface("params", fields).Msg("wrong data recieved")
+			return
+		}
+
+		usernameOrId := fields[1]
+		keyDto, err := srv.FindUser(ctx, domain.WithUsername(usernameOrId))
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 			return
@@ -194,12 +206,50 @@ func handleConn(ctx context.Context, conn net.Conn, db domain.BoltDB) {
 		for _, key := range keyDto.SshKeys {
 			_, _ = fmt.Fprintf(conn, "OK %s %s %s\n", key.Aglo, key.Key, key.Name)
 		}
-		return
 
 	case "SETUSER":
+		if len(fields) != 5 {
+			log.Warn().Interface("params", fields).Msg("wrong data provided")
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		usernameOrId := fields[1]
+		var keyDto domain.KeyDto
+
+		keyDto.User = structs.Passwd{
+			Username: usernameOrId,
+			Password: "",
+			UID:      500,
+			Dir:      "/home/" + usernameOrId,
+			Shell:    "/bin/bash",
+			Gecos:    "test",
+		}
+
+		keyDto.SshKeys = append(keyDto.SshKeys, domain.SshKey{
+			Aglo: fields[2],
+			Key:  fields[3],
+			Name: fields[4],
+		})
+
+		if err := srv.AddUser(ctx, keyDto); err != nil {
+			log.Warn().Err(err).Msg("creating user")
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		_, _ = fmt.Fprint(conn, "OK\n")
 	case "SYNC":
+		err := srv.Sync(ctx)
+		if err != nil {
+			log.Err(err).Msg("syncing")
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		_, _ = fmt.Fprint(conn, "OK\n")
 	default:
+		log.Warn().Interface("command", fields[0]).Msg("wrong request")
 		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 	}
-
 }

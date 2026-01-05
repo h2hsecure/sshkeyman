@@ -1,9 +1,9 @@
 package domain
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,7 +35,7 @@ type KeycloakConfig struct {
 func LoadConfig() *Config {
 	cfgfile, cfgErr := os.ReadFile("/etc/nss_sshkeyman.conf")
 	if cfgErr != nil {
-		fmt.Printf("open config file, using defaults: %s\n", cfgErr.Error())
+		log.Warn().Msgf("open config file, using defaults: %s\n", cfgErr.Error())
 		cfg := Config{}
 		cfg.Nss = NSSConfig{}
 		cfg.Nss.GroupID = 1000
@@ -50,7 +50,7 @@ func LoadConfig() *Config {
 	config := Config{}
 	cfgErr = yaml.Unmarshal([]byte(cfgfile), &config)
 	if cfgErr != nil {
-		fmt.Printf("open config file, using defaults: %s\n", cfgErr.Error())
+		log.Warn().Msgf("open config file, using defaults: %s\n", cfgErr.Error())
 	}
 
 	return &config

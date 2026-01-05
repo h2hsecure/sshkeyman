@@ -3,6 +3,7 @@ package adapter
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/samber/lo"
@@ -11,9 +12,9 @@ import (
 )
 
 const (
-	ServerTokenUrl       = "%s/auth/realms/%s/protocol/openid-connect/token"
-	ServerUserDetailsUrl = "%s/auth/admin/realms/%s/users"
-	ServerUserDetailUrl  = "%s/auth/admin/realms/%s/users/%s"
+	ServerTokenUrl       = "/auth/realms/%s/protocol/openid-connect/token"
+	ServerUserDetailsUrl = "/auth/admin/realms/%s/users"
+	ServerUserDetailUrl  = "/auth/admin/realms/%s/users/%s"
 )
 
 type KeyCloakAdapter struct {
@@ -22,6 +23,8 @@ type KeyCloakAdapter struct {
 	Realm          string
 	AccessUser     string
 	AccessPassword string
+
+	resty *resty.Client
 }
 
 type keycloakUser struct {
@@ -47,10 +50,10 @@ func (k keycloakUser) sshKey() string {
 func NewKeyCloakAdapter(config *domain.Config) domain.Backend {
 	return &KeyCloakAdapter{
 		ClientId:       config.Keycloak.ClientId,
-		Server:         config.Keycloak.Server,
 		Realm:          config.Keycloak.Realm,
 		AccessUser:     config.Keycloak.Username,
 		AccessPassword: config.Keycloak.Password,
+		resty:          resty.New().SetTimeout(3 * time.Second).SetBaseURL(config.Keycloak.Server),
 	}
 }
 
@@ -64,9 +67,9 @@ func (a *KeyCloakAdapter) auth(ctx context.Context) (string, error) {
 		"grant_type": "password",
 	}
 
-	postUrl := fmt.Sprintf(ServerTokenUrl, a.Server, a.Realm)
+	postUrl := fmt.Sprintf(ServerTokenUrl, a.Realm)
 
-	res, err := resty.New().R().
+	res, err := a.resty.R().
 		EnableTrace().
 		SetContext(ctx).
 		SetFormData(formData).
@@ -91,7 +94,7 @@ func (a *KeyCloakAdapter) FetchUser(ctx context.Context, username string) (domai
 
 	var ret []keycloakUser
 
-	res, err := resty.New().R().
+	res, err := a.resty.R().
 		EnableTrace().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -99,7 +102,7 @@ func (a *KeyCloakAdapter) FetchUser(ctx context.Context, username string) (domai
 		SetQueryParam("username", username).
 		SetQueryParam("exact", "true").
 		SetResult(&ret).
-		Get(fmt.Sprintf(ServerUserDetailsUrl, a.Server, a.Realm))
+		Get(fmt.Sprintf(ServerUserDetailsUrl, a.Realm))
 
 	if res.IsError() {
 		return domain.UserDetail{}, fmt.Errorf("fetch user: %v code: %d", res.Error(), res.StatusCode())
@@ -114,7 +117,7 @@ func (a *KeyCloakAdapter) FetchUser(ctx context.Context, username string) (domai
 
 	var userRet keycloakUser
 
-	userResp, err := resty.New().R().
+	userResp, err := a.resty.R().
 		EnableTrace().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -122,7 +125,7 @@ func (a *KeyCloakAdapter) FetchUser(ctx context.Context, username string) (domai
 		SetQueryParam("username", username).
 		SetQueryParam("exact", "true").
 		SetResult(&userRet).
-		Get(fmt.Sprintf(ServerUserDetailUrl, a.Server, a.Realm, detail.Id))
+		Get(fmt.Sprintf(ServerUserDetailUrl, a.Realm, detail.Id))
 
 	if userResp.IsError() {
 		return domain.UserDetail{}, fmt.Errorf("fetch user: %v code: %d", res.Error(), userResp.StatusCode())
@@ -146,14 +149,14 @@ func (a *KeyCloakAdapter) FetchUsers(ctx context.Context) ([]domain.UserDetail, 
 
 	var ret []keycloakUser
 
-	res, err := resty.New().R().
+	res, err := a.resty.R().
 		EnableTrace().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Authorization", fmt.Sprintf("bearer %s", token)).
 		SetQueryParam("exact", "true").
 		SetResult(&ret).
-		Get(fmt.Sprintf(ServerUserDetailsUrl, a.Server, a.Realm))
+		Get(fmt.Sprintf(ServerUserDetailsUrl, a.Realm))
 
 	if res.IsError() || err != nil {
 		return []domain.UserDetail{}, fmt.Errorf("auth request: %w", err)

@@ -19,7 +19,7 @@ audit: vet lint fmt staticcheck
 unit-tests: audit
 	@go mod download
 	@go get -v ./...
-	@go test -race -covermode=atomic -coverprofile coverage  ./...
+	@go test -timeout 3000s -race -covermode=atomic -coverprofile coverage  ./...
 # 	@go tool cover -func=coverage
 # 	@rm coverage
 
@@ -29,7 +29,7 @@ build: audit
 	@gcc -fPIC -shared -o libnss_sshkeyman.so.2 library/sshkeyman.c
 
 install: build
-	sudo cp libnss_sshkeyman.so.2 /usr/lib/x86_64-linux-gnu/libnss_sshkeyman.so.2
+	#sudo cp libnss_sshkeyman.so.2 /usr/lib/x86_64-linux-gnu/libnss_sshkeyman.so.2
 	sudo cp sshkeyman /usr/bin/sshkeyman
 	sudo mkdir -p /var/lib/sshkeyman
 	#sudo cp -rf nss_sshkeyman.conf /etc/nss_sshkeyman.conf

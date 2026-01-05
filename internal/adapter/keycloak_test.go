@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	tctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	keycloakContainer, err := keycloak.Run(tctx,
 		"quay.io/keycloak/keycloak:21.1",
-		testcontainers.WithWaitStrategy(wait.ForHealthCheck(), wait.ForListeningPort("8080/tcp")),
+		testcontainers.WithWaitStrategy(wait.ForExposedPort()),
 		testcontainers.WithLogger(&log.Logger),
 		testcontainers.WithName("keycloak-test"),
 		keycloak.WithContextPath("/auth"),
@@ -44,22 +44,18 @@ func TestMain(m *testing.M) {
 		keycloak.WithAdminPassword("admin"),
 	)
 	if err != nil {
-		panic(fmt.Errorf("keycloak: %v", err))
-	}
-	err = keycloakContainer.Start(tctx)
-	if err != nil {
-		panic(fmt.Errorf("keycloak: %v", err))
+		panic(fmt.Errorf("keycloak run: %w", err))
 	}
 
 	port, err := keycloakContainer.MappedPort(tctx, nat.Port("8080/tcp"))
 	if err != nil {
-		panic(fmt.Errorf("keycloak: %v", err))
+		panic(fmt.Errorf("keycloak port: %w", err))
 	}
 	keycloakPort = port.Int()
 	code := m.Run()
 	err = keycloakContainer.Stop(tctx, nil)
 	if err != nil {
-		panic(fmt.Errorf("keycloak: %v", err))
+		panic(fmt.Errorf("keycloak stop: %w", err))
 	}
 	cancel()
 	os.Exit(code)
