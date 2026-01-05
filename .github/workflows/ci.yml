@@ -38,10 +38,4 @@ jobs:
       - name: Build binaries
         run: |
           make package
-      
-      - name: Release binaries
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.run
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    

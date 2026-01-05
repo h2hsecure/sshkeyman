@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Test & Build
+    name: Release Package
     runs-on: ubuntu-latest
 
     strategy:
