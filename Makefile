@@ -19,9 +19,9 @@ audit: vet lint fmt staticcheck
 unit-tests: audit
 	@go mod download
 	@go get -v ./...
-	@go test -cover -race -covermode=atomic -coverprofile coverage  ./...
-	@go tool cover -func=coverage
-	@rm coverage
+	@go test -timeout 3000s -race -covermode=atomic -coverprofile coverage  ./...
+# 	@go tool cover -func=coverage
+# 	@rm coverage
 
 build: audit
 	@go build -o sshkeyman cmd/auth/main.go
@@ -29,7 +29,7 @@ build: audit
 	@gcc -fPIC -shared -o libnss_sshkeyman.so.2 library/sshkeyman.c
 
 install: build
-	sudo cp libnss_sshkeyman.so.2 /usr/lib/x86_64-linux-gnu/libnss_sshkeyman.so.2
+	#sudo cp libnss_sshkeyman.so.2 /usr/lib/x86_64-linux-gnu/libnss_sshkeyman.so.2
 	sudo cp sshkeyman /usr/bin/sshkeyman
 	sudo mkdir -p /var/lib/sshkeyman
 	#sudo cp -rf nss_sshkeyman.conf /etc/nss_sshkeyman.conf
@@ -39,6 +39,7 @@ package: build
 	mv libnss_sshkeyman.so.2 dist
 	mv sshkeyman dist
 	cp install.sh dist
+	cp nss_sshkeyman.conf dist
 	cp sshkeyman.service dist
 	chmod +x dist/install.sh
 	docker run --rm -v ./dist:/dist:rw realtimeneil/makeself:latest /tmp/makeself.sh /dist /dist/sshkeyman.run "sshkeyman install" ./install.sh

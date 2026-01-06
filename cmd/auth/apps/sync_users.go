@@ -1,18 +1,13 @@
 package apps
 
 import (
-	"context"
-	"crypto/sha256"
-	"errors"
 	"fmt"
-	"math/big"
+	"net"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/h2hsecure/sshkeyman/internal/adapter"
 	"github.com/h2hsecure/sshkeyman/internal/domain"
-	"github.com/protosam/go-libnss/structs"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/spf13/cobra"
@@ -26,10 +21,11 @@ var SyncUserCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Listen for termination signal for gracefully shutdown
 		c := make(chan os.Signal, 1)
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: false})
 
 		// Launch the application
 		if err := SyncUser(c); err != nil {
-			fmt.Fprintf(os.Stderr, "%s", err.Error())
+			log.Err(err).Send()
 			os.Exit(1)
 		}
 	},
@@ -38,82 +34,32 @@ var SyncUserCmd = &cobra.Command{
 func SyncUser(c chan os.Signal) error {
 	cfg := domain.LoadConfig()
 
-	backend, err := adapter.NewBoldDB(cfg.DBPath, false)
+	conn, err := net.Dial("unix", cfg.SocketPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("dial: %w", err)
 	}
+	defer func() {
+		_ = conn.Close()
+	}()
 
-	return SyncUserInDB(cfg, backend)
-}
-
-func SyncUserInDB(cfg *domain.Config, backend domain.BoltDB) error {
-	keycloak := adapter.NewKeyCloakAdapter(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	defer cancel()
-
-	userDetails, err := keycloak.FetchUsers(ctx)
+	_, err = fmt.Fprintf(conn, "SYNC\n")
 	if err != nil {
-		return fmt.Errorf("fetch user: %w", err)
+		return fmt.Errorf("sent command")
 	}
 
-	for _, userDetail := range userDetails {
-
-		if userDetail.SshPublicKey == "" {
-			continue
-		}
-		_, err := backend.ReadUser(ctx, userDetail.Username)
-
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return fmt.Errorf("backend read: %w", err)
-		}
-
-		if err == nil {
-			if !cfg.Nss.Override {
-				log.Warn().Err(err).Str("user", userDetail.Username).Msgf("override disabled")
-				continue
-			}
-		}
-
-		log.Info().Str("user", userDetail.Username).Msgf("creating")
-
-		key := strings.Split(userDetail.SshPublicKey, " ")
-		if len(key) != 3 {
-			log.Error().Str("user", userDetail.Username).Msg("key format error")
-		}
-
-		err = backend.CreateUser(ctx, userDetail.Username, domain.KeyDto{
-			User: structs.Passwd{
-				Username: userDetail.Username,
-				UID:      cfg.Nss.MinUID + hash(userDetail.Id),
-				GID:      cfg.Nss.GroupID,
-				Dir:      fmt.Sprintf(cfg.Home, userDetail.Username),
-				Shell:    cfg.Nss.Shell,
-				Gecos:    userDetail.Fullname,
-			},
-			SshKeys: []domain.SshKey{
-				{
-					Aglo: key[0],
-					Key:  key[1],
-					Name: key[2],
-				},
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("backend write: %w", err)
-		}
+	buf := make([]byte, 1024)
+	readCount, err := conn.Read(buf)
+	if err != nil {
+		return fmt.Errorf("read buf: %w", err)
 	}
+
+	readStr := string(buf[:readCount])
+
+	if strings.Contains(readStr, "NOTFOUND") {
+		return fmt.Errorf("snyc failed. take a look systemd daemon logs")
+	}
+
+	log.Info().Msg("sync completed")
 
 	return nil
-}
-
-func hash(s string) uint {
-	hasher := sha256.New()
-	_, err := hasher.Write([]byte(s))
-	if err != nil {
-		return 0
-	}
-	md := hasher.Sum(nil)
-	i := big.NewInt(0).SetBytes(md)
-	return i.Bit(32)
 }

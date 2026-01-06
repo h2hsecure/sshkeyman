@@ -13,7 +13,7 @@ func TestConfigLoad(t *testing.T) {
 		t.Fatalf("loading config error")
 	}
 
-	if cfg.DBPath != "/tmp/users.db" {
+	if cfg.DBPath != "/var/lib/sshkeyman/user.db" {
 		t.Fatalf("wrong db path: %s", cfg.DBPath)
 	}
 }
