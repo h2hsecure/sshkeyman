@@ -34,7 +34,7 @@ var SyncUserCmd = &cobra.Command{
 func SyncUser(c chan os.Signal) error {
 	cfg := domain.LoadConfig()
 
-	conn, err := net.Dial("unix", cfg.SocketPath)
+	conn, err := net.Dial("unix", cfg.ManagementSocketPath)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}

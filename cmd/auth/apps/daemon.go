@@ -42,6 +42,7 @@ func NewDaemon(c chan os.Signal) error {
 	cfg := domain.LoadConfig()
 
 	_ = os.Remove(cfg.SocketPath)
+	_ = os.Remove(cfg.ManagementSocketPath)
 
 	l, err := net.Listen("unix", cfg.SocketPath)
 	if err != nil {
@@ -50,9 +51,23 @@ func NewDaemon(c chan os.Signal) error {
 	defer func() {
 		_ = l.Close()
 	}()
+
+	mngntListen, err := net.Listen("unix", cfg.ManagementSocketPath)
+	if err != nil {
+		return fmt.Errorf("management listen: %v", err)
+	}
+	defer func() {
+		_ = mngntListen.Close()
+	}()
+
 	// Correct permissions for NSS access
 	if err := os.Chmod(cfg.SocketPath, 0o666); err != nil {
-		return fmt.Errorf("chmod: %v", err)
+		return fmt.Errorf("chmod: %w", err)
+	}
+
+	// Correct permissions for NSS access
+	if err := os.Chmod(cfg.ManagementSocketPath, 0o600); err != nil {
+		return fmt.Errorf("chmod: %w", err)
 	}
 
 	log.Info().Msg("myservice NSS daemon listening")
@@ -76,6 +91,17 @@ func NewDaemon(c chan os.Signal) error {
 			}
 
 			go handleConn(ctx, conn, srv)
+		}
+	})
+
+	grp.Go(func() error {
+		for {
+			conn, err := mngntListen.Accept()
+			if err != nil {
+				return fmt.Errorf("mngntaccept: %w", err)
+			}
+
+			go handleManagementConn(ctx, conn, srv)
 		}
 	})
 
@@ -106,6 +132,74 @@ func NewDaemon(c chan os.Signal) error {
 	}
 
 	return nil
+}
+
+func handleManagementConn(ctx context.Context, conn net.Conn, srv domain.IService) {
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	// Hard timeout: NSS must never block
+	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+
+	r := bufio.NewReader(conn)
+	line, err := r.ReadString('\n')
+	if err != nil {
+		log.Err(err).Msg("reading socket")
+		return
+	}
+
+	line = strings.TrimSpace(line)
+	fields := strings.Fields(line)
+
+	log.Info().Str("command", fields[0]).Msg("handling")
+
+	switch fields[0] {
+	case "SETUSER":
+		if len(fields) != 5 {
+			log.Warn().Interface("params", fields).Msg("wrong data provided")
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		usernameOrId := fields[1]
+		var keyDto domain.KeyDto
+
+		keyDto.User = structs.Passwd{
+			Username: usernameOrId,
+			Password: "",
+			UID:      500,
+			Dir:      "/home/" + usernameOrId,
+			Shell:    "/bin/bash",
+			Gecos:    "test",
+		}
+
+		keyDto.SshKeys = append(keyDto.SshKeys, domain.SshKey{
+			Aglo: fields[2],
+			Key:  fields[3],
+			Name: fields[4],
+		})
+
+		if err := srv.AddUser(ctx, keyDto); err != nil {
+			log.Warn().Err(err).Msg("creating user")
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		_, _ = fmt.Fprint(conn, "OK\n")
+	case "SYNC":
+		err := srv.Sync(ctx)
+		if err != nil {
+			log.Err(err).Msg("syncing")
+			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+			return
+		}
+
+		_, _ = fmt.Fprint(conn, "OK\n")
+	default:
+		log.Warn().Interface("command", fields[0]).Msg("wrong request")
+		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
+	}
 }
 
 func handleConn(ctx context.Context, conn net.Conn, srv domain.IService) {
@@ -207,49 +301,5 @@ func handleConn(ctx context.Context, conn net.Conn, srv domain.IService) {
 			_, _ = fmt.Fprintf(conn, "OK %s %s %s\n", key.Aglo, key.Key, key.Name)
 		}
 
-	case "SETUSER":
-		if len(fields) != 5 {
-			log.Warn().Interface("params", fields).Msg("wrong data provided")
-			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
-			return
-		}
-
-		usernameOrId := fields[1]
-		var keyDto domain.KeyDto
-
-		keyDto.User = structs.Passwd{
-			Username: usernameOrId,
-			Password: "",
-			UID:      500,
-			Dir:      "/home/" + usernameOrId,
-			Shell:    "/bin/bash",
-			Gecos:    "test",
-		}
-
-		keyDto.SshKeys = append(keyDto.SshKeys, domain.SshKey{
-			Aglo: fields[2],
-			Key:  fields[3],
-			Name: fields[4],
-		})
-
-		if err := srv.AddUser(ctx, keyDto); err != nil {
-			log.Warn().Err(err).Msg("creating user")
-			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
-			return
-		}
-
-		_, _ = fmt.Fprint(conn, "OK\n")
-	case "SYNC":
-		err := srv.Sync(ctx)
-		if err != nil {
-			log.Err(err).Msg("syncing")
-			_, _ = fmt.Fprint(conn, "NOTFOUND\n")
-			return
-		}
-
-		_, _ = fmt.Fprint(conn, "OK\n")
-	default:
-		log.Warn().Interface("command", fields[0]).Msg("wrong request")
-		_, _ = fmt.Fprint(conn, "NOTFOUND\n")
 	}
 }
