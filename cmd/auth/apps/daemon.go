@@ -167,11 +167,6 @@ func handleManagementConn(ctx context.Context, conn net.Conn, srv domain.IServic
 
 		keyDto.User = structs.Passwd{
 			Username: usernameOrId,
-			Password: "",
-			UID:      500,
-			Dir:      "/home/" + usernameOrId,
-			Shell:    "/bin/bash",
-			Gecos:    "test",
 		}
 
 		keyDto.SshKeys = append(keyDto.SshKeys, domain.SshKey{

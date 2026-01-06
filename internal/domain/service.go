@@ -3,9 +3,9 @@ package domain
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -72,6 +72,15 @@ func (s *Service) FindUser(ctx context.Context, ops ...SearchUserOp) (KeyDto, er
 
 // AddUser implements IService.
 func (s *Service) AddUser(ctx context.Context, user KeyDto) error {
+	user.User.UID = s.cfg.Nss.MinUID + uint(hash(user.User.Username))
+	user.User.GID = s.cfg.Nss.GroupID
+	user.User.Dir = fmt.Sprintf(s.cfg.Home, user.User.Username)
+	user.User.Password = "x"
+	user.User.Gecos = user.User.Username
+
+	if user.User.Shell == "" {
+		user.User.Shell = s.cfg.Nss.Shell
+	}
 	if err := s.db.CreateUser(ctx, user.User.Username, user); err != nil {
 		return fmt.Errorf("create user: %w", err)
 	}
@@ -120,7 +129,7 @@ func (s *Service) Sync(ctx context.Context) error {
 		err = s.db.CreateUser(ctx, userDetail.Username, KeyDto{
 			User: structs.Passwd{
 				Username: userDetail.Username,
-				UID:      s.cfg.Nss.MinUID + hash(userDetail.Id),
+				UID:      s.cfg.Nss.MinUID + uint(hash(userDetail.Id)),
 				GID:      s.cfg.Nss.GroupID,
 				Dir:      fmt.Sprintf(s.cfg.Home, userDetail.Username),
 				Shell:    s.cfg.Nss.Shell,
@@ -142,13 +151,9 @@ func (s *Service) Sync(ctx context.Context) error {
 	return nil
 }
 
-func hash(s string) uint {
-	hasher := sha256.New()
-	_, err := hasher.Write([]byte(s))
-	if err != nil {
-		return 0
-	}
-	md := hasher.Sum(nil)
-	i := big.NewInt(0).SetBytes(md)
-	return i.Bit(32)
+func hash(s string) uint32 {
+	hash := sha256.Sum256([]byte(s))
+	// Take first 8 bytes for uint64
+	u64 := binary.BigEndian.Uint64(hash[:8])
+	return uint32(u64)
 }

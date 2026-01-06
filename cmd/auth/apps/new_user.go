@@ -16,7 +16,7 @@ var NewUserCmd = &cobra.Command{
 	Use:   "new [user] [key]",
 	Short: "Create new user record for ssh keys database",
 	Long:  AppDescription,
-	Args:  cobra.MinimumNArgs(5),
+	Args:  cobra.MinimumNArgs(4),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Listen for termination signal for gracefully shutdown
 		c := make(chan os.Signal, 1)
