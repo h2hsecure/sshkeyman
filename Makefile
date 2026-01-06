@@ -39,6 +39,7 @@ package: build
 	mv libnss_sshkeyman.so.2 dist
 	mv sshkeyman dist
 	cp install.sh dist
+	cp nss_sshkeyman.conf dist
 	cp sshkeyman.service dist
 	chmod +x dist/install.sh
 	docker run --rm -v ./dist:/dist:rw realtimeneil/makeself:latest /tmp/makeself.sh /dist /dist/sshkeyman.run "sshkeyman install" ./install.sh
