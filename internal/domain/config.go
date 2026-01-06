@@ -9,11 +9,12 @@ import (
 
 // Config is base config in /etc/nss_sshkeyman.conf
 type Config struct {
-	Nss        NSSConfig      `yaml:"nss"`
-	Keycloak   KeycloakConfig `yaml:"keycloak"`
-	Home       string         `yaml:"home"`
-	DBPath     string         `yaml:"db_path"`
-	SocketPath string         `yaml:"socket_path"`
+	Nss                  NSSConfig      `yaml:"nss"`
+	Keycloak             KeycloakConfig `yaml:"keycloak"`
+	Home                 string         `yaml:"home"`
+	DBPath               string         `yaml:"db_path"`
+	SocketPath           string         `yaml:"socket_path"`
+	ManagementSocketPath string         `yaml:"management_socket_path"`
 }
 
 type NSSConfig struct {
@@ -45,6 +46,7 @@ func LoadConfig() *Config {
 		cfg.Nss.Shell = "/bin/bash"
 		cfg.DBPath = "/tmp/users.db"
 		cfg.SocketPath = "/var/lib/sshkeyman/daemon.sock"
+		cfg.ManagementSocketPath = "/var/lib/sshkeyman/management.sock"
 		return &cfg
 	}
 	config := Config{}

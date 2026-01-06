@@ -11,6 +11,7 @@ func TestConfigLoad(t *testing.T) {
 
 	if cfg == nil {
 		t.Fatalf("loading config error")
+		return
 	}
 
 	if cfg.DBPath != "/var/lib/sshkeyman/user.db" {

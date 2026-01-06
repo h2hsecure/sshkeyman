@@ -91,7 +91,9 @@ static enum nss_status query_daemon(
     pwd->pw_uid = uid;
     pwd->pw_gid = gid;
 
-    pwd->pw_gecos = pwd->pw_name;
+    pwd->pw_gecos = p;
+    strcpy(p, username);
+    p += strlen(p) + 1;
 
     pwd->pw_dir = p;
     strcpy(p, home);
